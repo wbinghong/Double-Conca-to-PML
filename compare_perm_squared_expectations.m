@@ -1,4 +1,3 @@
-% ---------------- Script: loop_compare_perm_squared_expectations_with_plot_save.m ----------------
 clear; clc;
 format long g;
 
@@ -8,9 +7,9 @@ mu1         = 2;
 mu2         = 1;
 lambda      = 1;
 num_trials  = 100;
-n_range     = 3:5;
+n_range     = 3:8;
 
-% --- Fixed Quantities
+% Some fixed quantities
 C11 = alpha * factorial(2*mu1) / lambda^(2*mu1);
 C22 = (1 - alpha) * factorial(2*mu2) / lambda^(2*mu2);
 C12 = sqrt(alpha * (1 - alpha)) * factorial(mu1 + mu2) / lambda^(mu1 + mu2);
@@ -18,14 +17,14 @@ S = [C11, C12;
      C12, C22];
 lambda_max = max(eig(S));
 
-% --- Storage
+% Storage to a table
 summary_table = zeros(length(n_range), 5);  % columns: n, E[perm(M)^2], E[perm(A)^2], tr(S^k), lambda^k
 
 for idx = 1:length(n_range)
     n = n_range(idx);
     fprintf('\n===== n = %d =====\n', n);
 
-    % Step 1: Monte Carlo for deterministic type
+    % Step 1: \expval{\perm(\matr{M})^2}
     perm_M_list = zeros(num_trials, 1);
     for t = 1:num_trials
         [M, ~, ~, ~] = generate_deterministic_mu_random_q_matrix(n, alpha, mu1, mu2, lambda);
@@ -33,7 +32,7 @@ for idx = 1:length(n_range)
     end
     mean_perm_M2 = mean(perm_M_list.^2);
 
-    % Step 2: Monte Carlo for random type
+    % Step 2: \expval{\perm(\matr{A})^2}
     perm_A_list = zeros(num_trials, 1);
     for t = 1:num_trials
         [A, ~, ~, ~] = generate_random_mu_random_q_matrix(n, alpha, mu1, mu2, lambda);
@@ -41,7 +40,7 @@ for idx = 1:length(n_range)
     end
     mean_perm_A2 = mean(perm_A_list.^2);
 
-    % Step 3: Compute trace(S^k) and lambda_max^k
+    % Step 3: trace(S^k) and lambda_max^k
     trace_S = zeros(1, n);
     trace_S_pf = lambda_max.^(1:n);
     S_k = eye(2);
@@ -50,15 +49,15 @@ for idx = 1:length(n_range)
         trace_S(k) = trace(S_k);
     end
 
-    % Step 4: Symbolic substitution
+    % Step 4: Cycle index substitution
     Z = cycle_index_Sn(n);
     Z_syms = sym('z', [1 n]);
 
     Z_substituted_trace = subs(Z, Z_syms, trace_S);
     Z_substituted_pf    = subs(Z, Z_syms, trace_S_pf);
 
-    perm_from_S_trace = double(Z_substituted_trace);
-    perm_from_S_pf    = double(Z_substituted_pf);
+    perm_from_S_trace = factorial(n)^2 * double(Z_substituted_trace);
+    perm_from_S_pf    = factorial(n)^2 * double(Z_substituted_pf);
 
     % Store values
     summary_table(idx, :) = [n, mean_perm_M2, mean_perm_A2, perm_from_S_trace, perm_from_S_pf];
@@ -83,5 +82,14 @@ output_dir = 'results';
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
-saveas(gcf, fullfile(output_dir, 'perm_squared_comparison.pdf'));
-fprintf('Figure saved to %s\n', fullfile(output_dir, 'perm_squared_comparison.pdf'));
+
+set(gcf, 'Units', 'inches', 'Position', [1, 1, 6, 4]);
+set(gcf, 'PaperUnits', 'inches');
+set(gcf, 'PaperSize', [6, 4]);
+set(gcf, 'PaperPosition', [0, 0, 6, 4]);
+set(gcf, 'PaperPositionMode', 'manual');
+
+filename = sprintf('squared_perm_comparison_alpha_%.2f_mu1_%d_mu2_%d_lambda_%.2f_n_%dto%d_trials_%d.pdf', ...
+                   alpha, mu1, mu2, lambda, n_range(1), n_range(end), num_trials);
+save_path = fullfile(output_dir, filename);
+print(gcf, save_path, '-dpdf', '-r300');
